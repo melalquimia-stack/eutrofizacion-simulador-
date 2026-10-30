@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulador de Eutrofización en Ecosistemas Acuáticos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: #080c14;
+            color: #f1f5f9;
+            overflow-x: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .glow-card {
+            box-shadow: 0 0 25px rgba(15, 23, 42, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        /* Personalización de los sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e293b;
+            border-radius: 8px;
+            height: 8px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 max-w-7xl mx-auto">
+
+    <!-- Encabezado de la Aplicación -->
+    <header class="w-full mb-3 text-center">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+            🌿 Simulador: Eutrofización Acuática
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-400 mt-1">Impacto del exceso de Nutrientes (N y P) en Lagos y Ecosistemas Acuáticos</p>
+    </header>
+
+    <!-- Panel Principal: Canvas + Panel de Control -->
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full my-auto">
+
+        <!-- Visualización Canvas HTML5 (7 cols) -->
+        <section class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 flex flex-col justify-between glow-card relative min-h-[380px] sm:min-h-[440px]">
+            
+            <!-- Barra Superior sobre el Canvas -->
+            <div class="flex justify-between items-center mb-2 z-10 px-1">
+                <div class="flex items-center gap-2">
+                    <span id="trophic-badge" class="px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800">
+                        Oligotrófico
+                    </span>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-2">
+                    <span>Luz Solar: <strong id="val-light" class="text-amber-300">100%</strong></span>
+                </div>
+            </div>
+
+            <!-- Contenedor del Canvas -->
+            <div class="relative flex-grow w-full h-[280px] sm:h-[340px] bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800 shadow-inner">
+                <canvas id="ecoCanvas"></canvas>
+            </div>
+
+            <!-- Botones Rápidos de Acción -->
+            <div class="grid grid-cols-2 gap-2 mt-3 z-10">
+                <button onclick="addFertilizerSpill()" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center justify-center gap-2">
+                    <span>🚜</span> <span>Vertido de Fertilizante</span>
+                </button>
+                <button onclick="resetEcosystem()" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-300 font-bold rounded-xl text-xs sm:text-sm border border-slate-700 transition flex items-center justify-center gap-2">
+                    <span>🔄</span> <span>Restaurar Agua Limpia</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Panel de Control y Métricas (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-3 justify-between">
+
+            <!-- Panel de Controles / Sliders -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 glow-card">
+                <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>🎛️</span> Entrada de Nutrientes Químicos
+                </h2>
+
+                <!-- Slider Nitratos -->
+                <div class="mb-3">
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                        <span class="text-cyan-400">Nitratos (NO₃⁻)</span>
+                        <span id="txt-no3" class="text-slate-300">0.2 mg/L</span>
+                    </div>
+                    <input type="range" id="input-no3" min="0.1" max="15.0" step="0.1" value="0.2" class="w-full cursor-pointer" oninput="updateNutrients()">
+                </div>
+
+                <!-- Slider Fosfatos -->
+                <div class="mb-2">
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                        <span class="text-teal-400">Fosfatos (PO₄³⁻)</span>
+                        <span id="txt-po4" class="text-slate-300">0.02 mg/L</span>
+                    </div>
+                    <input type="range" id="input-po4" min="0.01" max="3.00" step="0.01" value="0.02" class="w-full cursor-pointer" oninput="updateNutrients()">
+                </div>
+            </div>
+
+            <!-- Métricas Fisicoquímicas en Tiempo Real -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 glow-card">
+                <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>📊</span> Indicadores de Salud Acuática
+                </h2>
+
+                <div class="grid grid-cols-2 gap-2 text-center">
+                    <!-- Oxígeno Disuelto -->
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Oxígeno Disuelto (OD)</span>
+                        <span id="val-do" class="text-xl font-black text-emerald-400">9.5 <span class="text-xs font-normal text-slate-400">mg/L</span></span>
+                        <span id="status-do" class="text-[10px] block font-semibold text-emerald-500 mt-0.5">Óptimo (Sano)</span>
+                    </div>
+
+                    <!-- Turbidez -->
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Turbidez / Algas</span>
+                        <span id="val-turb" class="text-xl font-black text-cyan-400">2 <span class="text-xs font-normal text-slate-400">NTU</span></span>
+                        <span id="status-turb" class="text-[10px] block font-semibold text-cyan-500 mt-0.5">Agua Cristalina</span>
+                    </div>
+                </div>
+
+                <!-- Barra de Oxígeno Visual -->
+                <div class="mt-3">
+                    <div class="flex justify-between text-[10px] text-slate-400 font-semibold mb-1">
+                        <span>Nivel de Anoxia</span>
+                        <span>Saturación de O₂</span>
+                    </div>
+                    <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div id="bar-do" class="bg-emerald-500 h-full transition-all duration-300" style="width: 95%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estado de la Fauna -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 glow-card">
+                <div class="flex items-center gap-2">
+                    <span id="icon-fauna" class="text-xl">🐟</span>
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-200">Estado de la Fauna Acuática</h3>
+                        <p id="txt-fauna" class="text-xs text-slate-400">Peces sanos nadando activamente en la columna de agua.</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Seccion Teórica e Interactiva de Etapas de Eutrofización -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 mt-4 glow-card">
+        <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <span>📚</span> Las 5 Etapas del Proceso de Eutrofización
+        </h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
+            <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex flex-col items-center">
+                <span class="w-6 h-6 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 flex items-center justify-center font-bold mb-1.5">1</span>
+                <strong class="text-slate-200 mb-1">Entrada N y P</strong>
+                <p class="text-[11px] text-slate-400 leading-tight">Escorrentía agrícola y aguas residuales aportan exceso de fosfatos y nitratos.</p>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex flex-col items-center">
+                <span class="w-6 h-6 rounded-full bg-teal-950 text-teal-400 border border-teal-800 flex items-center justify-center font-bold mb-1.5">2</span>
+                <strong class="text-slate-200 mb-1">Bloom de Algas</strong>
+                <p class="text-[11px] text-slate-400 leading-tight">Procesos fotosintéticos descontrolados crean una capa densa de fitoplancton.</p>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex flex-col items-center">
+                <span class="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center justify-center font-bold mb-1.5">3</span>
+                <strong class="text-slate-200 mb-1">Bloqueo Solar</strong>
+                <p class="text-[11px] text-slate-400 leading-tight">La turbidez de la capa verde impide el paso de la luz a la vegetación del fondo.</p>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex flex-col items-center">
+                <span class="w-6 h-6 rounded-full bg-amber-950 text-amber-400 border border-amber-800 flex items-center justify-center font-bold mb-1.5">4</span>
+                <strong class="text-slate-200 mb-1">Descomposición</strong>
+                <p class="text-[11px] text-slate-400 leading-tight">Las bacterias consumen grandes cantidades de O₂ al degradar las algas muertas.</p>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex flex-col items-center">
+                <span class="w-6 h-6 rounded-full bg-rose-950 text-rose-400 border border-rose-800 flex items-center justify-center font-bold mb-1.5">5</span>
+                <strong class="text-slate-200 mb-1">Anoxia y Muerte</strong>
+                <p class="text-[11px] text-slate-400 leading-tight">La falta de oxígeno disuelto provoca zonas muertas y mortalidad de fauna acuática.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-2 text-[11px] text-slate-500 border-t border-slate-800/80 mt-3">
+        Laboratorio de Ciencias Ambientales y Biología • Eutrofización Acuática Interactiva
+    </footer>
+
+    <!-- Lógica de Simulación, Física y Renderizado -->
+    <script>
+        const canvas = document.getElementById('ecoCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Estado Global del Ecosistema
+        let state = {
+            no3: 0.2,       // mg/L (Nitratos)
+            po4: 0.02,      // mg/L (Fosfatos)
+            algaeDensity: 0, // 0 a 100
+            turbidity: 2,   // NTU
+            dissolvedO2: 9.5,// mg/L
+            lightPenetration: 100, // %
+            trophicState: 'Oligotrófico',
+            fishes: [],
+            plants: [],
+            particles: []
+        };
+
+        // Inicializar Fauna y Flora
+        function initEcosystemObjects() {
+            // Inicializar Peces
+            state.fishes = [];
+            for (let i = 0; i < 6; i++) {
+                state.fishes.push({
+                    x: Math.random() * 0.8 + 0.1,
+                    y: Math.random() * 0.4 + 0.4, // Parte media y profunda
+                    speedX: (Math.random() - 0.5) * 0.003,
+                    speedY: (Math.random() - 0.5) * 0.001,
+                    size: Math.random() * 6 + 12,
+                    alive: true,
+                    gasping: false,
+                    color: i % 2 === 0 ? '#f97316' : '#38bdf8'
+                });
+            }
+
+            // Inicializar Plantas del Fondo
+            state.plants = [];
+            for (let i = 0; i < 12; i++) {
+                state.plants.push({
+                    x: (i / 12) + 0.04 + (Math.random() * 0.02),
+                    height: Math.random() * 0.2 + 0.2,
+                    health: 1.0 // 1.0 (sana) a 0.0 (muerta/marrón)
+                });
+            }
+
+            // Partículas de Algas / Sedimento
+            state.particles = [];
+            for (let i = 0; i < 60; i++) {
+                state.particles.push({
+                    x: Math.random(),
+                    y: Math.random() * 0.3, // Inicialmente arriba
+                    size: Math.random() * 3 + 1,
+                    vy: Math.random() * 0.0005 + 0.0002
+                });
+            }
+        }
+
+        // Ajustar resolución del Canvas dinámicamente
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        initEcosystemObjects();
+
+        // Actualizar Valores por Cambio de Sliders
+        function updateNutrients() {
+            state.no3 = parseFloat(document.getElementById('input-no3').value);
+            state.po4 = parseFloat(document.getElementById('input-po4').value);
+            document.getElementById('txt-no3').innerText = `${state.no3.toFixed(1)} mg/L`;
+            document.getElementById('txt-po4').innerText = `${state.po4.toFixed(2)} mg/L`;
+        }
+
+        // Añadir vertido de fertilizante (Acción rápida)
+        function addFertilizerSpill() {
+            document.getElementById('input-no3').value = 12.0;
+            document.getElementById('input-po4').value = 2.20;
+            updateNutrients();
+        }
+
+        // Restaurar agua limpia
+        function resetEcosystem() {
+            document.getElementById('input-no3').value = 0.2;
+            document.getElementById('input-po4').value = 0.02;
+            updateNutrients();
+            initEcosystemObjects();
+        }
+
+        // Cálculos del Modelo Ecológico
+        function updateEcosystemLogic() {
+            // Factor limitante del crecimiento de algas (Índice de Nutrientes)
+            const nutrientScore = (state.no3 * 2) + (state.po4 * 25);
+
+            // Densidad de algas resultante (0 a 100)
+            const targetAlgae = Math.min(100, nutrientScore * 3.2);
+            state.algaeDensity += (targetAlgae - state.algaeDensity) * 0.03;
+
+            // Turbidez (NTU) y Penetración Solar (%)
+            state.turbidity = 2 + (state.algaeDensity * 1.8);
+            state.lightPenetration = Math.max(0, 100 - (state.algaeDensity * 0.95));
+
+            // Calculo de Oxígeno Disuelto (mg/L)
+            // A bajas algas: ~9.5 mg/L. A alta densidad de algas: la descomposición bacteriana desploma el O2 a 0 mg/L.
+            let targetDO = 9.5 - (state.algaeDensity * 0.095);
+            if (state.algaeDensity > 60) {
+                targetDO -= (state.algaeDensity - 60) * 0.02;
+            }
+            targetDO = Math.max(0, targetDO);
+            state.dissolvedO2 += (targetDO - state.dissolvedO2) * 0.02;
+
+            // Estado Trófico
+            const badge = document.getElementById('trophic-badge');
+            if (state.algaeDensity < 15) {
+                state.trophicState = 'Oligotrófico';
+                badge.className = "px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800";
+            } else if (state.algaeDensity < 40) {
+                state.trophicState = 'Mesotrófico';
+                badge.className = "px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider bg-cyan-950 text-cyan-400 border border-cyan-800";
+            } else if (state.algaeDensity < 75) {
+                state.trophicState = 'Eutrófico';
+                badge.className = "px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider bg-amber-950 text-amber-400 border border-amber-800";
+            } else {
+                state.trophicState = 'Hipereutrófico';
+                badge.className = "px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider bg-rose-950 text-rose-400 border border-rose-800";
+            }
+            badge.innerText = state.trophicState;
+
+            // Actualización de Salud de Plantas profundas por falta de luz
+            state.plants.forEach(p => {
+                if (state.lightPenetration < 30) {
+                    p.health = Math.max(0, p.health - 0.005);
+                } else {
+                    p.health = Math.min(1.0, p.health + 0.005);
+                }
+            });
+
+            // Actualización de la Fauna (Peces)
+            let aliveCount = 0;
+            state.fishes.forEach(f => {
+                if (state.dissolvedO2 <= 0.2) {
+                    f.alive = false;
+                } else {
+                    f.alive = true;
+                }
+
+                if (f.alive) {
+                    aliveCount++;
+                    // Si el oxígeno baja de 3.0 mg/L, los peces se estresan y buscan la superficie (boqueo)
+                    if (state.dissolvedO2 < 3.0) {
+                        f.gasping = true;
+                        f.targetY = 0.15 + (Math.random() * 0.08); // Cerca de superficie
+                    } else {
+                        f.gasping = false;
+                        f.targetY = 0.4 + (Math.random() * 0.4);
+                    }
+
+                    f.x += f.speedX;
+                    f.y += (f.targetY - f.y) * 0.02 + f.speedY;
+
+                    if (f.x < 0.08 || f.x > 0.92) f.speedX *= -1;
+                } else {
+                    // Pez muerto flota patas arriba en la superficie
+                    f.y += (0.08 - f.y) * 0.03;
+                }
+            });
+
+            // Actualizar Interfaz Textual
+            document.getElementById('val-light').innerText = `${Math.round(state.lightPenetration)}%`;
+            document.getElementById('val-do').innerHTML = `${state.dissolvedO2.toFixed(1)} <span class="text-xs font-normal text-slate-400">mg/L</span>`;
+            document.getElementById('val-turb').innerHTML = `${Math.round(state.turbidity)} <span class="text-xs font-normal text-slate-400">NTU</span>`;
+
+            // Barra e indicadores de O2
+            const doBar = document.getElementById('bar-do');
+            const doStatus = document.getElementById('status-do');
+            const doPercent = Math.min(100, (state.dissolvedO2 / 10.0) * 100);
+            doBar.style.width = `${doPercent}%`;
+
+            if (state.dissolvedO2 >= 6.0) {
+                doBar.className = "bg-emerald-500 h-full transition-all duration-300";
+                doStatus.innerText = "Sano / Agua Oxigenada";
+                doStatus.className = "text-[10px] block font-semibold text-emerald-400 mt-0.5";
+            } else if (state.dissolvedO2 >= 2.5) {
+                doBar.className = "bg-amber-500 h-full transition-all duration-300";
+                doStatus.innerText = "Estrés Moderado (Hipoxia)";
+                doStatus.className = "text-[10px] block font-semibold text-amber-400 mt-0.5";
+            } else {
+                doBar.className = "bg-rose-500 h-full transition-all duration-300";
+                doStatus.innerText = "Anoxia Crítica (Mortalidad)";
+                doStatus.className = "text-[10px] block font-semibold text-rose-400 mt-0.5";
+            }
+
+            // Texto de la Fauna
+            const iconFauna = document.getElementById('icon-fauna');
+            const txtFauna = document.getElementById('txt-fauna');
+            if (aliveCount === state.fishes.length && !state.fishes[0].gasping) {
+                iconFauna.innerText = '🐟';
+                txtFauna.innerText = "Peces sanos nadando activamente en la columna de agua.";
+            } else if (aliveCount > 0) {
+                iconFauna.innerText = '⚠️';
+                txtFauna.innerText = "Peces estresados nadando en la superficie intentando captar oxígeno (boqueo).";
+            } else {
+                iconFauna.innerText = '☠️';
+                txtFauna.innerText = "Mortalidad masiva de peces debido a la anoxia total (0 mg/L de O₂).";
+            }
+        }
+
+        // Renderizado Visual en el Canvas
+        function renderCanvas() {
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // 1. Color de Fondo del Agua (Transición de azul cristalino a verde turbio pestilente)
+            const algaeRatio = state.algaeDensity / 100;
+            const r = Math.round(15 + algaeRatio * 45);
+            const g = Math.round(75 + algaeRatio * 110 - (1 - state.dissolvedO2 / 9.5) * 30);
+            const b = Math.round(140 - algaeRatio * 110);
+            
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.fillRect(0, 0, w, h);
+
+            // 2. Rayos de Luz Solar (Inclinados desde arriba)
+            if (state.lightPenetration > 5) {
+                const lightAlpha = (state.lightPenetration / 100) * 0.25;
+                ctx.fillStyle = `rgba(254, 240, 138, ${lightAlpha})`;
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(w * (0.1 + i * 0.2), 0);
+                    ctx.lineTo(w * (0.2 + i * 0.2), 0);
+                    ctx.lineTo(w * (0.1 + i * 0.2) + 40, h * 0.8);
+                    ctx.lineTo(w * (0.05 + i * 0.2) + 20, h * 0.8);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            // 3. Lecho Acuático (Sedimento del fondo)
+            const sedimentColor = state.algaeDensity > 50 ? '#272015' : '#473b2b';
+            ctx.fillStyle = sedimentColor;
+            ctx.beginPath();
+            ctx.moveTo(0, h * 0.85);
+            ctx.quadraticCurveTo(w * 0.5, h * 0.83, w, h * 0.87);
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.fill();
+
+            // 4. Plantas Acuáticas Profundas (Sanas = Verdes brillantes, Muertas = Marrones/Degradadas)
+            state.plants.forEach(p => {
+                const px = p.x * w;
+                const py = h * 0.85;
+                const pHeight = p.height * h;
+
+                ctx.strokeStyle = p.health > 0.4 ? `rgba(34, 197, 94, ${p.health})` : `rgba(120, 80, 40, ${Math.max(0.2, p.health)})`;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.quadraticCurveTo(px + Math.sin(Date.now() / 400 + px) * 12, py - pHeight * 0.5, px, py - pHeight);
+                ctx.stroke();
+            });
+
+            // 5. Animación de Fauna (Peces)
+            state.fishes.forEach(f => {
+                const fx = f.x * w;
+                const fy = f.y * h;
+
+                ctx.save();
+                ctx.translate(fx, fy);
+
+                // Si está muerto, rota patas arriba
+                if (!f.alive) {
+                    ctx.rotate(Math.PI);
+                } else if (f.speedX < 0) {
+                    ctx.scale(-1, 1);
+                }
+
+                // Cuerpo del Pez
+                ctx.fillStyle = f.alive ? f.color : '#94a3b8';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, f.size, f.size * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Cola
+                ctx.beginPath();
+                ctx.moveTo(-f.size, 0);
+                ctx.lineTo(-f.size - 6, -5);
+                ctx.lineTo(-f.size - 6, 5);
+                ctx.closePath();
+                ctx.fill();
+
+                // Ojo
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(f.size * 0.5, -f.size * 0.15, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(f.size * 0.5, -f.size * 0.15, 1, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+
+            // 6. Capa Superficial de Floración de Algas (Algal Bloom Layer)
+            if (state.algaeDensity > 5) {
+                const bloomOpacity = Math.min(0.95, state.algaeDensity / 90);
+                const layerHeight = Math.min(45, 8 + state.algaeDensity * 0.35);
+
+                // Capa verde fluorescente en la superficie
+                ctx.fillStyle = `rgba(34, 197, 94, ${bloomOpacity})`;
+                ctx.fillRect(0, 0, w, layerHeight);
+
+                // Nubes gruesas de fitoplancton
+                ctx.fillStyle = `rgba(22, 101, 52, ${bloomOpacity * 0.8})`;
+                for (let i = 0; i < w; i += 25) {
+                    ctx.beginPath();
+                    ctx.arc(i + Math.sin(i + Date.now() / 500) * 5, layerHeight * 0.8, 15 + Math.sin(i) * 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 7. Partículas en suspensión (Sedimento / Algas muertas cayendo)
+            if (state.algaeDensity > 20) {
+                ctx.fillStyle = `rgba(134, 239, 172, ${Math.min(0.6, state.algaeDensity / 120)})`;
+                state.particles.forEach(pt => {
+                    pt.y += pt.vy;
+                    if (pt.y > 0.85) pt.y = 0;
+
+                    ctx.beginPath();
+                    ctx.arc(pt.x * w, pt.y * h, pt.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        // Bucle Principal de Animación
+        function loop() {
+            updateEcosystemLogic();
+            renderCanvas();
+            requestAnimationFrame(loop);
+        }
+
+        // Inicialización
+        updateNutrients();
+        loop();
+    </script>
+</body>
+</html>
